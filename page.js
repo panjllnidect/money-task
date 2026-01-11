@@ -2,42 +2,104 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function Home() {
+export default function AdminPanel() {
   const router = useRouter();
-  const [saldo, setSaldo] = useState(0);
+  const [withdraws, setWithdraws] = useState([]);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    if (!localStorage.getItem("isLogin")) {
-      router.push("/login");
+    if (!localStorage.getItem("adminLogin")) {
+      router.push("/admin/login");
       return;
     }
 
-    const email = localStorage.getItem("userLogin");
-    const users = JSON.parse(localStorage.getItem("users")) || [];
-    const user = users.find(u => u.email === email);
-
-    if (user) setSaldo(user.saldo);
+    setWithdraws(
+      JSON.parse(localStorage.getItem("withdraw_requests")) || []
+    );
+    setUsers(
+      JSON.parse(localStorage.getItem("users")) || []
+    );
   }, []);
 
-  const klaimMisi = (reward) => {
-    const email = localStorage.getItem("userLogin");
-    const users = JSON.parse(localStorage.getItem("users")) || [];
+  const approveWithdraw = (id) => {
+    let wd = withdraws.find(w => w.id === id);
+    if (!wd) return;
 
-    const updated = users.map(u =>
-      u.email === email ? { ...u, saldo: u.saldo + reward } : u
+    // kurangi saldo user
+    const updatedUsers = users.map(u =>
+      u.email === wd.email
+        ? { ...u, saldo: u.saldo - wd.amount }
+        : u
     );
 
-    localStorage.setItem("users", JSON.stringify(updated));
-    setSaldo(saldo + reward);
+    // update status withdraw
+    const updatedWithdraws = withdraws.map(w =>
+      w.id === id
+        ? { ...w, status: "APPROVED" }
+        : w
+    );
+
+    localStorage.setItem("users", JSON.stringify(updatedUsers));
+    localStorage.setItem(
+      "withdraw_requests",
+      JSON.stringify(updatedWithdraws)
+    );
+
+    setUsers(updatedUsers);
+    setWithdraws(updatedWithdraws);
+
+    alert("Withdraw APPROVED");
+  };
+
+  const rejectWithdraw = (id) => {
+    const updated = withdraws.map(w =>
+      w.id === id
+        ? { ...w, status: "REJECTED" }
+        : w
+    );
+
+    localStorage.setItem(
+      "withdraw_requests",
+      JSON.stringify(updated)
+    );
+    setWithdraws(updated);
+
+    alert("Withdraw REJECTED");
   };
 
   return (
     <div className="card">
-      <h2>Saldo</h2>
-      <p>Rp {saldo.toLocaleString()}</p>
-      <button className="btn" onClick={() => klaimMisi(5000)}>
-        Klaim Misi
-      </button>
+      <h2>Admin – Approve Withdraw</h2>
+
+      {withdraws.length === 0 && <p>Tidak ada withdraw</p>}
+
+      {withdraws.map(w => (
+        <div key={w.id} className="card">
+          <p><b>User:</b> {w.email}</p>
+          <p><b>Jumlah:</b> Rp {w.amount.toLocaleString()}</p>
+          <p><b>Status:</b> {w.status}</p>
+
+          {w.status === "PENDING" && (
+            <>
+              <button
+                className="btn"
+                onClick={() => approveWithdraw(w.id)}
+              >
+                Approve
+              </button>
+
+              <br /><br />
+
+              <button
+                className="btn"
+                onClick={() => rejectWithdraw(w.id)}
+              >
+                Reject
+              </button>
+            </>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
